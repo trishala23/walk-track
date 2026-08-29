@@ -10,16 +10,18 @@
  * ---------------------------------------------------------------------- */
 
 // Acceleration magnitude (m/s^2) the smoothed signal must rise above, then
-// fall back below, for a step to be registered. Typical walking peaks are
-// roughly 1-3 m/s^2 above gravity once gravity is removed by the low-pass
-// filter below.
-const STEP_THRESHOLD = 1.2;
+// fall back below, for a step to be registered. A real footfall produces a
+// noticeably bigger spike than casual hand movement/shaking, so this is
+// set high enough that just moving the phone around while stationary
+// shouldn't cross it. Typical walking peaks are roughly 2-4 m/s^2 above
+// gravity once gravity is removed by the low-pass filter below.
+const STEP_THRESHOLD = 2.2;
 
 // Minimum time between two counted steps, in milliseconds. Prevents a
 // single footfall's vibration from being counted twice. Average walking
-// cadence is one step roughly every 400-600ms, so 250-300ms is a safe
+// cadence is one step roughly every 400-600ms, so 300-400ms is a safe
 // floor that still allows fast walking/light jogging.
-const MIN_STEP_INTERVAL_MS = 300;
+const MIN_STEP_INTERVAL_MS = 350;
 
 // Smoothing factor for the exponential moving average (0-1). Lower values
 // smooth more aggressively (less noise, but slower to react); higher
