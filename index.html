@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Step Counter</title>
+  <meta name="description" content="A real-time step counter that uses your phone's motion sensors." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app__header">
+      <h1>Step Counter</h1>
+      <p class="status" id="status">Waiting for permission</p>
+    </header>
+
+    <section class="counter">
+      <span class="counter__value" id="stepCount">0</span>
+      <span class="counter__label">steps</span>
+    </section>
+
+    <section class="controls">
+      <button id="startBtn" class="btn btn--primary">Start Tracking</button>
+      <button id="stopBtn" class="btn" hidden>Stop Tracking</button>
+      <button id="resetBtn" class="btn btn--secondary">Reset</button>
+    </section>
+
+    <section id="errorPanel" class="panel panel--error" hidden>
+      <p id="errorMessage"></p>
+      <button id="retryBtn" class="btn btn--primary" hidden>Retry</button>
+    </section>
+
+    <section class="debug-toggle">
+      <label>
+        <input type="checkbox" id="debugToggle" />
+        Show Debug Info
+      </label>
+    </section>
+
+    <section id="debugPanel" class="panel panel--debug" hidden>
+      <p>Raw magnitude: <span id="debugRaw">0.00</span></p>
+      <p>Smoothed value: <span id="debugSmoothed">0.00</span></p>
+      <p>Threshold: <span id="debugThreshold">0.00</span></p>
+      <p>Last step gap: <span id="debugGap">-</span> ms</p>
+    </section>
+
+    <footer class="app__footer">
+      <p>Works best on a phone, over HTTPS. Keep the screen on and the phone with you while walking.</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
