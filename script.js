@@ -28,6 +28,16 @@ const MIN_STEP_INTERVAL_MS = 350;
 // values track the raw signal more closely.
 const SMOOTHING_ALPHA = 0.2;
 
+// Gyroscope rotation rate (degrees/second, combined across axes) above
+// which a sample is treated as a deliberate device rotation (flipping,
+// spinning the phone in hand) rather than a walking footfall, and is not
+// allowed to register a step. Rotating the phone still produces a real
+// acceleration spike at the sensor (it isn't at the rotation's center),
+// so amplitude alone can't tell a flip from a step - normal walking
+// keeps rotation rate low even when the phone swings in a pocket or
+// hand, while a deliberate flip is much faster.
+const ROTATION_GATE_DEG_PER_SEC = 250;
+
 const STORAGE_KEY = 'stepCounter.count';
 
 /* ------------------------------------------------------------------- */
@@ -47,6 +57,7 @@ const els = {
   debugSmoothed: document.getElementById('debugSmoothed'),
   debugThreshold: document.getElementById('debugThreshold'),
   debugGap: document.getElementById('debugGap'),
+  debugRotation: document.getElementById('debugRotation'),
 };
 
 const state = {
@@ -181,12 +192,23 @@ function handleMotion(event) {
   const usingGravity = accel === event.accelerationIncludingGravity;
   const normalizedMagnitude = usingGravity ? Math.abs(magnitude - 9.8) : Math.abs(magnitude);
 
-  detectStep(normalizedMagnitude);
-  updateDebugUI(normalizedMagnitude);
+  const isRotatingFast = isRotatingFastEnoughToIgnore(event.rotationRate);
+
+  detectStep(normalizedMagnitude, isRotatingFast);
+  updateDebugUI(normalizedMagnitude, isRotatingFast);
 }
 
 function hasValues(vector) {
   return vector.x !== null && vector.y !== null && vector.z !== null;
+}
+
+function isRotatingFastEnoughToIgnore(rotationRate) {
+  if (!rotationRate) return false;
+  const { alpha, beta, gamma } = rotationRate;
+  if (alpha === null || beta === null || gamma === null) return false;
+
+  const rotationMagnitude = Math.sqrt(alpha ** 2 + beta ** 2 + gamma ** 2);
+  return rotationMagnitude > ROTATION_GATE_DEG_PER_SEC;
 }
 
 /**
@@ -203,8 +225,11 @@ function hasValues(vector) {
  * 4. Enforce MIN_STEP_INTERVAL_MS between counted steps as a debounce,
  *    since a genuine footfall vibration or a brief re-cross of the
  *    threshold shouldn't register as two separate steps.
+ * 5. Ignore candidate steps while the phone is rotating fast (see
+ *    ROTATION_GATE_DEG_PER_SEC) - a deliberate flip/spin produces a real
+ *    acceleration spike too, but isn't a footfall.
  */
-function detectStep(rawMagnitude) {
+function detectStep(rawMagnitude, isRotatingFast) {
   state.smoothedMagnitude =
     SMOOTHING_ALPHA * rawMagnitude + (1 - SMOOTHING_ALPHA) * state.smoothedMagnitude;
 
@@ -218,7 +243,7 @@ function detectStep(rawMagnitude) {
     state.isAboveThreshold = false;
 
     const timeSinceLastStep = now - state.lastStepTime;
-    if (timeSinceLastStep >= MIN_STEP_INTERVAL_MS) {
+    if (!isRotatingFast && timeSinceLastStep >= MIN_STEP_INTERVAL_MS) {
       state.lastStepTime = now;
       registerStep();
     }
@@ -237,11 +262,12 @@ function updateUI() {
   els.stepCount.textContent = state.stepCount;
 }
 
-function updateDebugUI(rawMagnitude) {
+function updateDebugUI(rawMagnitude, isRotatingFast) {
   if (!els.debugToggle.checked) return;
   els.debugRaw.textContent = rawMagnitude.toFixed(2);
   els.debugSmoothed.textContent = state.smoothedMagnitude.toFixed(2);
   els.debugGap.textContent = state.lastStepTime ? Date.now() - state.lastStepTime : '-';
+  els.debugRotation.textContent = isRotatingFast ? 'yes (steps ignored)' : 'no';
 }
 
 function resetCounter() {
