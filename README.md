@@ -71,12 +71,17 @@ case — sensor behavior varies noticeably between devices.
    git push -u origin main
    ```
 
-2. On GitHub, go to **Settings > Pages**.
-3. Under **Build and deployment**, set **Source** to "Deploy from a
-   branch", choose the `main` branch and the `/ (root)` folder, then save.
-4. GitHub Pages will publish the site at
+2. This repo includes a GitHub Actions workflow
+   (`.github/workflows/deploy.yml`) that deploys the site to Pages on every
+   push to `main`. To activate it: on GitHub, go to **Settings > Pages**,
+   and under **Build and deployment**, set **Source** to **"GitHub
+   Actions"** (this is a one-time setting — the workflow file handles the
+   rest).
+3. Push to `main` (or re-run the workflow manually from the **Actions**
+   tab) to trigger a deployment. GitHub Pages will publish the site at
    `https://<your-username>.github.io/<your-repo>/` (usually within a
-   minute or two).
+   minute or two). Check the **Actions** tab for the deployment status and
+   the live URL.
 
 **Important:** GitHub Pages serves over HTTPS by default, which is required
 for the motion sensor APIs (`DeviceMotionEvent.requestPermission`, and
