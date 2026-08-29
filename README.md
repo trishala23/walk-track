@@ -41,17 +41,31 @@ likely fail permission checks — use GitHub Pages (HTTPS) or a tunnel like
 
 The peak-detection constants live at the top of `script.js`:
 
-| Constant              | Meaning                                                             |
-| ---------------------- | -------------------------------------------------------------------- |
-| `STEP_THRESHOLD`       | Smoothed acceleration magnitude (m/s²) a step must cross             |
-| `MIN_STEP_INTERVAL_MS` | Minimum time between counted steps, to avoid double-counting         |
-| `SMOOTHING_ALPHA`      | Exponential moving average factor (lower = smoother, slower signal)  |
+| Constant                    | Meaning                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `STEP_THRESHOLD`             | Smoothed acceleration magnitude (m/s²) a step must cross                                     |
+| `MIN_STEP_INTERVAL_MS`       | Lower bound of the walking-cadence window between candidate peaks, to avoid double-counting  |
+| `MAX_STEP_INTERVAL_MS`       | Upper bound of the walking-cadence window; gaps longer than this reset the rhythm streak     |
+| `REQUIRED_CONSISTENT_STEPS`  | Consecutive on-cadence peaks required before they start counting as steps                    |
+| `SMOOTHING_ALPHA`            | Exponential moving average factor (lower = smoother, slower signal)                          |
+| `ROTATION_GATE_DEG_PER_SEC`  | Gyroscope rotation rate above which a candidate is ignored (flipping/spinning the phone)      |
 
-- **Under-counting steps?** Lower `STEP_THRESHOLD` or raise
-  `SMOOTHING_ALPHA` slightly so real footfalls cross the threshold.
-- **Over-counting steps?** Raise `STEP_THRESHOLD`, or raise
-  `MIN_STEP_INTERVAL_MS` if double-counts are happening on the same
-  footfall.
+Amplitude alone can't tell a real footfall from a deliberate shake or flip —
+both produce a similar acceleration spike. What actually distinguishes
+walking is its steady rhythm, so a step only counts once
+`REQUIRED_CONSISTENT_STEPS` candidate peaks in a row land inside the
+`MIN_STEP_INTERVAL_MS`–`MAX_STEP_INTERVAL_MS` cadence window (and the phone
+isn't rotating fast at that moment). This means the first step or two of
+each walking session goes uncounted while the rhythm is established — a
+deliberate tradeoff for rejecting hand shakes/waves.
+
+- **Under-counting steps?** Lower `STEP_THRESHOLD`, raise
+  `SMOOTHING_ALPHA` slightly so real footfalls cross the threshold, widen
+  the cadence window (lower `MIN_STEP_INTERVAL_MS` / raise
+  `MAX_STEP_INTERVAL_MS`), or lower `REQUIRED_CONSISTENT_STEPS`.
+- **Over-counting steps?** Raise `STEP_THRESHOLD`, narrow the cadence
+  window, or raise `REQUIRED_CONSISTENT_STEPS` so a longer rhythm has to
+  be established before steps count.
 
 Use the **Show Debug Info** toggle while walking with the phone in hand or
 pocket to see live raw/smoothed values and pick good numbers for your use
