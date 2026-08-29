@@ -5,8 +5,9 @@
  *
  * These control the peak-detection algorithm. If the counter is UNDER-
  * counting steps (missing real steps), try lowering STEP_THRESHOLD or
- * SMOOTHING_ALPHA. If it's OVER-counting (counting noise/vibration as
- * steps), try raising STEP_THRESHOLD or MIN_STEP_INTERVAL_MS.
+ * SMOOTHING_ALPHA, or lowering REQUIRED_CONSISTENT_STEPS. If it's OVER-
+ * counting (counting noise/shaking/vibration as steps), try raising
+ * STEP_THRESHOLD, MIN_STEP_INTERVAL_MS, or REQUIRED_CONSISTENT_STEPS.
  * ---------------------------------------------------------------------- */
 
 // Acceleration magnitude (m/s^2) the smoothed signal must rise above, then
@@ -17,11 +18,24 @@
 // gravity once gravity is removed by the low-pass filter below.
 const STEP_THRESHOLD = 2.2;
 
-// Minimum time between two counted steps, in milliseconds. Prevents a
-// single footfall's vibration from being counted twice. Average walking
-// cadence is one step roughly every 400-600ms, so 300-400ms is a safe
-// floor that still allows fast walking/light jogging.
+// Plausible walking-cadence window between consecutive candidate peaks, in
+// milliseconds. MIN prevents a single footfall's vibration from being
+// counted twice (average cadence is one step roughly every 400-600ms, so
+// 300-400ms is a safe floor). MAX rejects gaps too long to be the same
+// walking rhythm (over a second between "steps" isn't a walking gait).
 const MIN_STEP_INTERVAL_MS = 350;
+const MAX_STEP_INTERVAL_MS = 1000;
+
+// Number of consecutive candidate peaks that must land inside the cadence
+// window above before they start being counted as steps. Deliberate
+// shaking/waving the phone side to side produces the same kind of
+// acceleration spike as a footfall, but rarely holds a steady walking
+// rhythm for more than one or two peaks in a row - requiring a short
+// streak filters that out without needing an ever-higher amplitude
+// threshold (which would risk missing real, lighter footfalls). The
+// tradeoff: the first REQUIRED_CONSISTENT_STEPS-1 steps of each walking
+// session go uncounted while the rhythm is established.
+const REQUIRED_CONSISTENT_STEPS = 2;
 
 // Smoothing factor for the exponential moving average (0-1). Lower values
 // smooth more aggressively (less noise, but slower to react); higher
@@ -58,6 +72,7 @@ const els = {
   debugThreshold: document.getElementById('debugThreshold'),
   debugGap: document.getElementById('debugGap'),
   debugRotation: document.getElementById('debugRotation'),
+  debugStreak: document.getElementById('debugStreak'),
 };
 
 const state = {
@@ -65,6 +80,8 @@ const state = {
   smoothedMagnitude: 0,
   isAboveThreshold: false,
   lastStepTime: 0,
+  lastCandidateTime: 0,
+  consistentStepStreak: 0,
   tracking: false,
 };
 
@@ -222,12 +239,14 @@ function isRotatingFastEnoughToIgnore(rotationRate) {
  *    below the threshold after having been above it. This avoids
  *    counting the same footfall multiple times while it's above the
  *    threshold.
- * 4. Enforce MIN_STEP_INTERVAL_MS between counted steps as a debounce,
- *    since a genuine footfall vibration or a brief re-cross of the
- *    threshold shouldn't register as two separate steps.
- * 5. Ignore candidate steps while the phone is rotating fast (see
+ * 4. Ignore candidate steps while the phone is rotating fast (see
  *    ROTATION_GATE_DEG_PER_SEC) - a deliberate flip/spin produces a real
  *    acceleration spike too, but isn't a footfall.
+ * 5. Require a short streak of candidates spaced within a plausible
+ *    walking-cadence window (MIN/MAX_STEP_INTERVAL_MS) before counting
+ *    them (see REQUIRED_CONSISTENT_STEPS). This is what distinguishes a
+ *    real walking rhythm from an isolated shake/wave, which produces the
+ *    same kind of amplitude spike but rarely holds a steady cadence.
  */
 function detectStep(rawMagnitude, isRotatingFast) {
   state.smoothedMagnitude =
@@ -242,10 +261,20 @@ function detectStep(rawMagnitude, isRotatingFast) {
     // Falling edge: left the peak, this is a candidate step.
     state.isAboveThreshold = false;
 
-    const timeSinceLastStep = now - state.lastStepTime;
-    if (!isRotatingFast && timeSinceLastStep >= MIN_STEP_INTERVAL_MS) {
-      state.lastStepTime = now;
-      registerStep();
+    if (!isRotatingFast) {
+      const sinceLastCandidate = state.lastCandidateTime ? now - state.lastCandidateTime : null;
+      const isOnBeat =
+        sinceLastCandidate !== null &&
+        sinceLastCandidate >= MIN_STEP_INTERVAL_MS &&
+        sinceLastCandidate <= MAX_STEP_INTERVAL_MS;
+
+      state.lastCandidateTime = now;
+      state.consistentStepStreak = isOnBeat ? state.consistentStepStreak + 1 : 1;
+
+      if (state.consistentStepStreak >= REQUIRED_CONSISTENT_STEPS) {
+        state.lastStepTime = now;
+        registerStep();
+      }
     }
   }
 
@@ -268,11 +297,14 @@ function updateDebugUI(rawMagnitude, isRotatingFast) {
   els.debugSmoothed.textContent = state.smoothedMagnitude.toFixed(2);
   els.debugGap.textContent = state.lastStepTime ? Date.now() - state.lastStepTime : '-';
   els.debugRotation.textContent = isRotatingFast ? 'yes (steps ignored)' : 'no';
+  els.debugStreak.textContent = `${state.consistentStepStreak} / ${REQUIRED_CONSISTENT_STEPS}`;
 }
 
 function resetCounter() {
   state.stepCount = 0;
   state.lastStepTime = 0;
+  state.lastCandidateTime = 0;
+  state.consistentStepStreak = 0;
   saveStepCount(0);
   updateUI();
 }
